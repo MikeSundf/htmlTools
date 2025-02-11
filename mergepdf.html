@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Merger</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+    h1 {
+      color: #4CAF50;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 10px;
+    }
+    input[type="file"], input[type="number"] {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .manual {
+      margin-top: 30px;
+      padding: 15px;
+      background-color: #f1f1f1;
+      border-left: 5px solid #4CAF50;
+    }
+    .manual h2 {
+      color: #4CAF50;
+    }
+    .manual ul {
+      padding-left: 20px;
+    }
+    .manual ul li {
+      margin-bottom: 10px;
+    }
+  </style>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>PDF Merger</h1>
+    <form id="pdf-form">
+      <label for="pdf-files">Select PDF Files (or Folder):</label>
+      <input type="file" id="pdf-files" multiple accept="application/pdf" webkitdirectory required>
+      <br><br>
+      <label for="rotation-degree">Rotation Degree:</label>
+      <input type="number" id="rotation-degree" value="270" required>
+      <br><br>
+      <button type="submit">Merge and Rotate PDFs</button>
+    </form>
+
+<div class="manual">
+  <h2>User Manual</h2>
+  <h3>How to Prepare Input Files:</h3>
+  <ul>
+    <li>Place all PDF files in the same folder.</li>
+    <li>Ensure filenames follow this format: <strong>Prefix Number.pdf</strong> (e.g., <code>Ares 1.pdf</code>, <code>Ares 2.pdf</code>, <code>Byan 1.pdf</code>, <code>Byan 2.pdf</code>).</li>
+    <li>You can process multiple sets of files simultaneously. Example:
+      <ul>
+        <li><code>Ares 1.pdf</code>, <code>Ares 2.pdf</code> → Merged to <code>Ares.pdf</code></li>
+        <li><code>Byan 1.pdf</code>, <code>Byan 2.pdf</code> → Merged to <code>Byan.pdf</code></li>
+      </ul>
+    </li>
+    <li>The prefix must be the same for files you want to merge together.</li>
+    <li>The suffix must be a space followed by a number (e.g., <code> 1</code>, <code> 2</code>).</li>
+  </ul>
+
+  <h3>How to Run the Script:</h3>
+  <ul>
+    <li>Click the "Select PDF Files (or Folder)" button and choose the folder containing your PDF files.</li>
+    <li>Enter the rotation degree (e.g., <code>270</code> for clockwise rotation). Use <code>0</code> if no rotation is needed.</li>
+    <li><strong>Browser Notice:</strong> When clicking "Merge and Rotate PDFs":
+      <ul>
+        <li>Your browser may ask for permission to download multiple files.</li>
+        <li>Click <strong>Allow</strong> or <strong>OK</strong> in any pop-up dialog to enable multiple downloads.</li>
+      </ul>
+    </li>
+    <li>Multiple PDFs will be downloaded automatically (one per prefix group).</li>
+  </ul>
+
+  <h3>Where to Find Merged Files:</h3>
+  <ul>
+    <li>After processing, all merged PDFs will be automatically downloaded to your default "Downloads" folder.</li>
+    <li>Each merged file is named after its prefix (e.g., <code>Ares.pdf</code>, <code>Byan.pdf</code>).</li>
+    <li>Check your browser's download history if you can't find the files immediately.</li>
+  </ul>
+
+  <h3>Rotation Degree Explanation:</h3>
+  <ul>
+    <li><strong>0</strong>: No rotation (original orientation)</li>
+    <li><strong>90</strong>: Rotate 90 degrees clockwise</li>
+    <li><strong>180</strong>: Rotate 180 degrees (upside down)</li>
+    <li><strong>270</strong>: Rotate 270 degrees clockwise (equivalent to 90° counter-clockwise)</li>
+  </ul>
+</div>
+  <script>
+    document.getElementById('pdf-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Get selected files and rotation degree
+      const files = document.getElementById('pdf-files').files;
+      const rotationDegree = parseInt(document.getElementById('rotation-degree').value, 10);
+
+      if (files.length === 0) {
+        alert('Please select at least one PDF file.');
+        return;
+      }
+
+      // Validate rotation degree
+      if (![0, 90, 180, 270].includes(rotationDegree)) {
+        alert('Rotation degree must be 0, 90, 180, or 270.');
+        return;
+      }
+
+      try {
+        // Group files by prefix
+        const groupedFiles = {};
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const fileName = file.name;
+          const prefixMatch = fileName.match(/^(.+?) \d+\.pdf$/i); // Match prefix (e.g., "Ares 1.pdf" → "Ares")
+          if (prefixMatch) {
+            const prefix = prefixMatch[1];
+            if (!groupedFiles[prefix]) {
+              groupedFiles[prefix] = [];
+            }
+            groupedFiles[prefix].push(file);
+          }
+        }
+
+        // Process each group
+        const { PDFDocument, degrees } = PDFLib;
+        for (const prefix in groupedFiles) {
+          const filesInGroup = groupedFiles[prefix];
+          const mergedPdf = await PDFDocument.create();
+
+          // Sort files by their numeric suffix (e.g., "Ares 1.pdf", "Ares 2.pdf")
+          filesInGroup.sort((a, b) => {
+            const suffixA = parseInt(a.name.match(/\d+/)[0], 10);
+            const suffixB = parseInt(b.name.match(/\d+/)[0], 10);
+            return suffixA - suffixB;
+          });
+
+          // Merge and rotate files in the group
+          for (const file of filesInGroup) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdfDoc = await PDFDocument.load(arrayBuffer);
+            const pages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+            pages.forEach((page) => {
+              page.setRotation(degrees(rotationDegree)); // Rotate pages
+              mergedPdf.addPage(page);
+            });
+          }
+
+          // Save the merged PDF
+          const mergedPdfBytes = await mergedPdf.save();
+          const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = `${prefix}.pdf`; // Use prefix as the filename
+          link.click();
+          URL.revokeObjectURL(link.href);
+        }
+
+        alert('PDFs merged and rotated successfully! Check your downloads folder.');
+      } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred while processing the PDFs.');
+      }
+    });
+  </script>
+</body>
+</html>
