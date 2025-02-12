@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Splitter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        h1 {
+            color: #4CAF50;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 10px;
+        }
+        input[type="file"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .manual {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f1f1f1;
+            border-left: 5px solid #4CAF50;
+        }
+        .manual h2 {
+            color: #4CAF50;
+        }
+        .manual ul {
+            padding-left: 20px;
+        }
+        .manual ul li {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF Splitter</h1>
+        <label for="startPage">Start Page:</label>
+        <input type="number" id="startPage" value="1"><br><br>
+        <label for="pagesPerFile">Pages Per File:</label>
+        <input type="number" id="pagesPerFile" value="1"><br><br>
+        <input type="file" id="fileInput"><br><br>
+        <button id="splitButton">Split PDF</button>
+
+        <div class="manual">
+            <h2>User Manual</h2>
+            <ul>
+                <li>Select the PDF file you want to split by clicking the "Choose File" button.</li>
+                <li>Enter the start page number in the "Start Page" field (default is 1).</li>
+                <li>Enter the number of pages each split PDF should contain in the "Pages Per File" field (default is 1).</li>
+                <li>Click the "Split PDF" button to start the splitting process.</li>
+                <li>The original PDF will be split into multiple smaller PDFs based on your input.</li>
+                <li>The split PDFs will be compiled into a ZIP file and automatically downloaded to your browser.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('splitButton').addEventListener('click', async () => {
+            const startPage = parseInt(document.getElementById('startPage').value);
+            const pagesPerFile = parseInt(document.getElementById('pagesPerFile').value);
+            const fileInput = document.getElementById('fileInput').files[0];
+
+            if (!fileInput) {
+                alert('Please select a PDF file.');
+                return;
+            }
+
+            const arrayBuffer = await fileInput.arrayBuffer();
+            const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+            const totalPages = pdfDoc.getPageCount();
+            const zip = new JSZip();
+
+            let currentPage = startPage - 1;
+            let fileIndex = 1;
+
+            while (currentPage < totalPages) {
+                const newPdfDoc = await PDFLib.PDFDocument.create();
+                const endPage = Math.min(currentPage + pagesPerFile, totalPages);
+
+                for (let i = currentPage; i < endPage; i++) {
+                    const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [i]);
+                    newPdfDoc.addPage(copiedPage);
+                }
+
+                const newPdfBytes = await newPdfDoc.save();
+                zip.file(`split_${fileIndex}.pdf`, newPdfBytes);
+                fileIndex++;
+                currentPage += pagesPerFile;
+            }
+
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(zipBlob);
+            link.download = 'split_pdfs.zip';
+            link.click();
+        });
+    </script>
+</body>
+</html>
