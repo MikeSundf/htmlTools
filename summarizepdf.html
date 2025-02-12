@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Summarizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        h1 {
+            color: #4CAF50;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 10px;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .output {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f1f1f1;
+            border-left: 5px solid #4CAF50;
+            white-space: pre-wrap;
+        }
+        .manual {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f1f1f1;
+            border-left: 5px solid #4CAF50;
+        }
+        .manual h2 {
+            color: #4CAF50;
+        }
+        .manual ul {
+            padding-left: 20px;
+        }
+        .manual ul li {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>PDF Summarizer</h1>
+
+        <label for="apiKey">OpenAI API Key:</label>
+        <input type="text" id="apiKey" placeholder="Enter your OpenAI API key" required>
+
+        <label for="modelSelect">Select Model:</label>
+        <select id="modelSelect">
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo ($0.002 per 1,000 tokens)</option>
+            <option value="gpt-4-turbo">GPT-4 Turbo ($0.01 per 1,000 tokens)</option>
+            <option value="gpt-4">GPT-4 ($0.03 per 1,000 tokens)</option>
+        </select>
+
+        <label for="summaryLength">Summary Length:</label>
+        <select id="summaryLength">
+            <option value="long">Long</option>
+            <option value="medium" selected>Medium</option>
+            <option value="short">Short</option>
+        </select>
+
+        <label for="pdfInput">Upload PDF File:</label>
+        <input type="file" id="pdfInput" accept="application/pdf">
+
+        <button onclick="handlePDF()">Summarize PDF</button>
+
+        <h2>Summary Output:</h2>
+        <div class="output" id="summary">No summary yet.</div>
+        
+        <!-- User Manual -->
+        <div class="manual">
+            <h2>User Manual</h2>
+            <ul>
+                <li><strong>Step 1:</strong> Enter your OpenAI API Key in the input field.</li>
+                <li><strong>Step 2:</strong> Select the OpenAI model from the dropdown.</li>
+                <li><strong>Step 3:</strong> Choose the summary length (Short, Medium, Long).</li>
+                <li><strong>Step 4:</strong> Upload a PDF file by clicking the "Choose File" button.</li>
+                <li><strong>Step 5:</strong> Click the "Summarize PDF" button to get the summarized output.</li>
+				<li><strong>Note:</strong> The model/price information is based on the current pricing as of February 2025. Please verify with OpenAI for any updates.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        async function extractTextFromPDF(pdfFile) {
+            const reader = new FileReader();
+            return new Promise((resolve, reject) => {
+                reader.onload = async function () {
+                    const typedArray = new Uint8Array(reader.result);
+                    const pdf = await pdfjsLib.getDocument(typedArray).promise;
+                    let text = '';
+
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const content = await page.getTextContent();
+                        text += content.items.map(item => item.str).join(' ') + '\n';
+                    }
+                    resolve(text);
+                };
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(pdfFile);
+            });
+        }
+
+        async function handlePDF() {
+            const apiKey = document.getElementById("apiKey").value;
+            const model = document.getElementById("modelSelect").value;
+            const summaryLength = document.getElementById("summaryLength").value;
+            const fileInput = document.getElementById("pdfInput");
+
+            if (!apiKey) {
+                alert("Please enter your OpenAI API key.");
+                return;
+            }
+
+            if (!fileInput.files.length) {
+                alert("Please select a PDF file!");
+                return;
+            }
+
+            const pdfFile = fileInput.files[0];
+            const extractedText = await extractTextFromPDF(pdfFile);
+
+            if (!extractedText.trim()) {
+                alert("No text found in the PDF!");
+                return;
+            }
+
+            document.getElementById("summary").innerText = "Processing...";
+
+            // Define summary instruction based on user selection
+            let summaryInstruction = "Summarize this text concisely.";
+            if (summaryLength === "long") {
+                summaryInstruction = "Provide a detailed summary of this text.";
+            } else if (summaryLength === "short") {
+                summaryInstruction = "Summarize this text in one or two sentences.";
+            }
+
+            // Call OpenAI API
+            const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [
+                        { role: "system", content: summaryInstruction },
+                        { role: "user", content: extractedText.substring(0, 5000) }
+                    ]
+                })
+            });
+
+            const data = await response.json();
+            if (data.choices && data.choices.length > 0) {
+                document.getElementById("summary").innerText = data.choices[0].message.content;
+            } else {
+                document.getElementById("summary").innerText = "Error: No response from OpenAI.";
+            }
+        }
+    </script>
+
+</body>
+</html>
